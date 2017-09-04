@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <title>Recursive leap of faith</title>
+    <link rel="canonical" href="http://madstap.github.io">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href='http://fonts.googleapis.com/css?family=Alegreya:400italic,700italic,400,700' rel='stylesheet'
+          type='text/css'>
+    <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.0/css/bootstrap.min.css">
+    <link href="//maxcdn.bootstrapcdn.com/font-awesome/4.2.0/css/font-awesome.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.7.0/styles/default.min.css">
+    <link href="/css/screen.css" rel="stylesheet" type="text/css" />
+</head>
+<body>
+
+
+<nav class="navbar navbar-default">
+    <div class="container">
+        <div class="navbar-header">
+            <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+            </button>
+            <a class="navbar-brand" href="/">Recursive leap of faith</a>
+        </div>
+        <div id="navbar" class="navbar-collapse collapse">
+            <ul class="nav navbar-nav navbar-right">
+                <li  class="active" ><a href="/">Home</a></li>
+                <li
+                ><a href="/archives/">Archives</a></li>
+                
+                <li
+                >
+                <a href="/about/">About</a>
+                </li>
+                
+                <li><a href="/feed.xml">RSS</a></li>
+            </ul>
+        </div><!--/.nav-collapse -->
+    </div><!--/.container-fluid -->
+</nav>
+
+
+<div class="container">
+
+
+    <div class="row">
+        <div class="col-lg-9">
+            <div id="content">
+                
+<div id="post">
+    
+    <div class="post-header">
+        <h2>Re-frame with the HTML history api</h2>
+        <div id="post-meta">
+            
+            <div class="date">September 4, 2017</div>
+        </div>
+    </div>
+    <p>The default routing in the re-frame template is hash-based, which may be just what you need if you want to deploy it on a "dumb server".</p><p>If you can make the server forward all requests to where your app lives, however, (<a href="https://caniuse.com/#search=history">and don't need to support ancient browsers</a>) then you can use the HTML history api. It makes your fancy SPA seem like an old-school server-responds-with-html website. Which is good, cause that's how people expect the web to work. (The back button, links, etc.)</p><p>The first part of <a href="http://krasimirtsonev.com/blog/article/deep-dive-into-client-side-routing-navigo-pushstate-hash">this blog post</a> does a good job of explaining the lay of the land when it comes to client side routing. (In the second part they implement a router, but we'll use one that someone else built.)</p>
+    <a href="/posts/hashless-routing/">Continue reading &#8594;</a>
+    <hr>
+    
+
+    <div id="prev-next">
+        
+        
+    </div>
+</div>
+
+            </div>
+        </div>
+
+        <div class="col-md-3">
+          <div id="sidebar">
+
+                <!-- There's not really anything to put here, yet. -->
+                <!-- <h3>Links</h3> -->
+                <!-- <ul id="links"> -->
+                <!--     <li><a href="http://cryogenweb.org/docs/home.html">Cryogen Docs</a></li> -->
+                <!--     <li><a href="http://carmenla.me/blog/archives">Carmen's Blog</a></li> -->
+                <!--      -->
+                <!--     <li><a href="/another-page/">Another Page</a></li> -->
+                <!--      -->
+                <!-- </ul> -->
+
+                
+                <div id="recent">
+                    <h3>Recent Posts</h3>
+                    <ul>
+                        
+                        <li><a href="/posts/hashless-routing/">Re-frame with the HTML history api</a></li>
+                        
+                    </ul>
+                </div>
+                
+                
+                <div id="tags">
+                    <h3>Tags</h3>
+                    <ul>
+                        
+                        <li><a href="/tags-output/netlify/">netlify</a></li>
+                        
+                        <li><a href="/tags-output/re-frame/">re-frame</a></li>
+                        
+                        <li><a href="/tags-output/routing/">routing</a></li>
+                        
+                        <li><a href="/tags-output/clojurescript/">clojurescript</a></li>
+                        
+                        <li><a href="/tags-output/SPA/">SPA</a></li>
+                        
+                    </ul>
+                </div>
+                
+            </div>
+        </div>
+    </div>
+    <footer>Copyright &copy; 2017 Aleksander Madland Stapnes
+        <p style="text-align: center;">Powered by <a href="http://cryogenweb.org">Cryogen</a></p></footer>
+</div>
+<script src="//code.jquery.com/jquery-1.11.0.min.js"></script>
+<script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.0/js/bootstrap.min.js"></script>
+<script src="/js/highlight.pack.js" type="text/javascript"></script>
+<script>hljs.initHighlightingOnLoad();</script>
+
+
+</body>
+</html>

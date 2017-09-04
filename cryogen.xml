@@ -1,0 +1,21 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<rss version='2.0' xmlns:atom='http://www.w3.org/2005/Atom'>
+<channel>
+<atom:link href='http://madstap.github.io/' rel='self' type='application/rss+xml'/>
+<title>
+Recursive leap of faith
+</title>
+<link>
+http://madstap.github.io/
+</link>
+<description>
+Just another technical blog
+</description>
+<lastBuildDate>
+Mon, 04 Sep 2017 00:21:07 -0300
+</lastBuildDate>
+<generator>
+clj-rss
+</generator>
+</channel>
+</rss>

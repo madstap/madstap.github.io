@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <title>Recursive leap of faith: Re-frame with the HTML history api</title>
+    <link rel="canonical" href="http://madstap.github.io/posts/hashless-routing/">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href='http://fonts.googleapis.com/css?family=Alegreya:400italic,700italic,400,700' rel='stylesheet'
+          type='text/css'>
+    <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.0/css/bootstrap.min.css">
+    <link href="//maxcdn.bootstrapcdn.com/font-awesome/4.2.0/css/font-awesome.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.7.0/styles/default.min.css">
+    <link href="/css/screen.css" rel="stylesheet" type="text/css" />
+</head>
+<body>
+
+
+<nav class="navbar navbar-default">
+    <div class="container">
+        <div class="navbar-header">
+            <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+            </button>
+            <a class="navbar-brand" href="/">Recursive leap of faith</a>
+        </div>
+        <div id="navbar" class="navbar-collapse collapse">
+            <ul class="nav navbar-nav navbar-right">
+                <li ><a href="/">Home</a></li>
+                <li
+                ><a href="/archives/">Archives</a></li>
+                
+                <li
+                >
+                <a href="/about/">About</a>
+                </li>
+                
+                <li><a href="/feed.xml">RSS</a></li>
+            </ul>
+        </div><!--/.nav-collapse -->
+    </div><!--/.container-fluid -->
+</nav>
+
+
+<div class="container">
+
+
+    <div class="row">
+        <div class="col-lg-9">
+            <div id="content">
+                
+<div id="post">
+    <div class="post-header">
+    <div id="post-meta" class="row">
+        <div class="col-lg-6">September 4, 2017</div>
+        
+    </div>
+    <h2>Re-frame with the HTML history api</h2>
+</div>
+<div>
+    <ol class="content"><li><a href="#ingredients">Ingredients</a></li><li><a href="#the_client">The client</a></li><ol><li><a href="#deps">Deps</a></li><li><a href="#routes">Routes</a></li><li><a href="#wiring">Wiring</a></li><li><a href="#views">Views</a></li></ol><li><a href="#the_server">The server</a></li><ol><li><a href="#branch_to_deploy">Branch to deploy</a></li><li><a href="#build_command">Build command</a></li><li><a href="#publish_directory">Publish directory</a></li><li><a href="#_redirects">_redirects</a></li></ol></ol>
+    <p>The default routing in the re-frame template is hash-based, which may be just what you need if you want to deploy it on a "dumb server".</p><p>If you can make the server forward all requests to where your app lives, however, (<a href='https://caniuse.com/#search=history'>and don't need to support ancient browsers</a>) then you can use the HTML history api. It makes your fancy SPA seem like an old-school server-responds-with-html website. Which is good, cause that's how people expect the web to work. (The back button, links, etc.)</p><p>The first part of <a href='http://krasimirtsonev.com/blog/article/deep-dive-into-client-side-routing-navigo-pushstate-hash'>this blog post</a> does a good job of explaining the lay of the land when it comes to client side routing. (In the second part they implement a router, but we'll use one that someone else built.)</p><h2 id="ingredients">Ingredients</h2><p>We'll interact with html history through <a href='https://github.com/kibu-australia/pushy'>pushy</a>, define our routes using <a href='https://github.com/juxt/bidi'>bidi</a> and use <a href='https://www.netlify.com'>netlify</a> for "serverless" hosting.</p><p>Basically someone already did all the hard work, all that's left is to glue the pieces together.</p><h2 id="the&#95;client">The client</h2><p>Setting up clojurescript by hand can be fiddly, so we'll use the <a href='https://github.com/Day8/re-frame-template'>re-frame template</a>.</p><p>Start by summoning a re-frame project from the void.</p><pre><code>lein new re-frame spa-routing +cider +routes
+</code></pre><p>(You can skip the <code>+cider</code> part if you use another editor/ide.)</p><p><code>+routes</code> means that it will already be set up with routing via <a href='https://github.com/gf3/secretary'>secretary</a>.</p><p>It's nice to use this a comparison, and we'll keep the subscription and event handler as-is.</p><p>(Existing code that's irrelevant is represented by <code>,,,</code>.)</p><h3 id="deps">Deps</h3><p>We need to depend on pushy and bidi.</p><p><code>project.clj</code><pre><code class="clojure">&#40;defproject spa-routing &quot;0.1.0-SNAPSHOT&quot;
+  :dependencies &#91;,,,
+                 &#91;kibu/pushy &quot;0.3.8&quot;&#93;
+                 &#91;bidi &quot;2.1.2&quot;&#93;
+                 ,,,&#93;
+  ,,,&#41;
+</code></pre></p><h3 id="routes">Routes</h3><p>Then the routes themselves. The code in <code>src/cljs/spa-routing/routes.cljs</code> both defines the routes and connects them to the browser. It looks like this:</p><pre><code class="clojure">&#40;ns spa-routing.routes
+  &#40;:require-macros &#91;secretary.core :refer &#91;defroute&#93;&#93;&#41;
+  &#40;:import goog.History&#41;
+  &#40;:require &#91;secretary.core :as secretary&#93;
+            &#91;goog.events :as events&#93;
+            &#91;goog.history.EventType :as EventType&#93;
+            &#91;re-frame.core :as re-frame&#93;&#41;&#41;
+
+&#40;defn hook-browser-navigation! &#91;&#93;
+  &#40;doto &#40;History.&#41;
+    &#40;events/listen
+     EventType/NAVIGATE
+     &#40;fn &#91;event&#93;
+       &#40;secretary/dispatch! &#40;.-token event&#41;&#41;&#41;&#41;
+    &#40;.setEnabled true&#41;&#41;&#41;
+
+&#40;defn app-routes &#91;&#93;
+  &#40;secretary/set-config! :prefix &quot;#&quot;&#41;
+  ;; --------------------
+  ;; define routes here
+  &#40;defroute &quot;/&quot; &#91;&#93;
+    &#40;re-frame/dispatch &#91;:set-active-panel :home-panel&#93;&#41;&#41;
+
+  &#40;defroute &quot;/about&quot; &#91;&#93;
+    &#40;re-frame/dispatch &#91;:set-active-panel :about-panel&#93;&#41;&#41;
+
+
+  ;; --------------------
+  &#40;hook-browser-navigation!&#41;&#41;
+</code></pre><p>This mixes "what are the routes" with "what to do when a route changes" and "how to hook it up to the browser".</p><p>We'll put the parts where it's glued to re-frame and the browser elsewhere and reserve this namespace purely for defining the routes.</p><p>Change <code>src/cljs/spa-routing/routes.cljs</code> so it looks like this:</p><pre><code class="clojure">&#40;ns spa-routing.routes
+  &#40;:require
+   &#91;bidi.bidi :as bidi&#93;&#41;&#41;
+
+&#40;def routes
+  &#91;&quot;/&quot; {&quot;&quot; :home-panel
+        &quot;about&quot; :about-panel}&#93;&#41;
+
+&#40;def match &#40;partial bidi/match-route routes&#41;&#41;
+
+&#40;def path &#40;partial bidi/path-for routes&#41;&#41;
+</code></pre><h3 id="wiring">Wiring</h3><p>Now that we have our routes, we need to hook them up to the browser and to re-frame.</p><p>I like to do this in <code>src/cljs/spa-routing/core.cljs</code>.</p><pre><code class="clojure">&#40;ns spa-routing.core
+  &#40;:require ,,,
+            &#91;pushy.core :as pushy&#93;
+            &#91;spa-routing.routes :as routes&#93;
+            ,,,&#41;&#41;
+
+&#40;defn start-routing! &#91;&#93;
+  &#40;pushy/start! &#40;pushy/pushy #&#40;re-frame/dispatch &#91;:set-active-panel %&#93;&#41;
+                             #&#40;:handler &#40;routes/match %&#41;&#41;&#41;&#41;&#41;
+
+&#40;defn dev-setup &#91;&#93; ,,,&#41;
+
+&#40;defn mount-root &#91;&#93; ,,,&#41;
+
+&#40;defn &#94;:export init &#91;&#93;
+  &#40;start-routing!&#41;
+  ,,,&#41;
+</code></pre><p>As you can see, pushy takes two functions. What to do when there's a match and the matching function. We hook this up to the existing re-frame event that came with the <code>+routes</code> option and the <code>match</code> function that we defined in <code>routes.cljs</code>.</p><p>This is much nicer than using the history api through interop.</p><h3 id="views">Views</h3><p>The original template uses strings for the routes in <code>src/cljs/spa-routing/views.cljs</code>. This is quite fragile, so we'll take advantage of fact that bidi is bi-directional by using the <code>path</code> function we made in <code>routes.cljs</code>.</p><pre><code class="clojure">&#40;ns spa-routing.views
+  &#40;:require &#91;re-frame.core :as re-frame&#93;
+            &#91;spa-routing.routes :as routes&#93;&#41;&#41; ;; &lt;= require routes
+
+&#40;defn home-panel &#91;&#93;
+  &#40;let &#91;name &#40;re-frame/subscribe &#91;:name&#93;&#41;&#93;
+    &#40;fn &#91;&#93;
+      &#91;:div &#40;str &quot;Hello from &quot; @name &quot;. This is the Home Page.&quot;&#41;
+       &#91;:div &#91;:a {:href &#40;routes/path :about-panel&#41;} ;; &lt;= Use helper here
+        &quot;go to About Page&quot;&#93;&#93;&#93;&#41;&#41;&#41;
+
+&#40;defn about-panel &#91;&#93;
+  &#40;fn &#91;&#93;
+    &#91;:div &quot;This is the About Page.&quot;
+     &#91;:div &#91;:a {:href &#40;routes/path :home-panel&#41;} ;; &lt;= and here.
+      &quot;go to Home Page&quot;&#93;&#93;&#93;&#41;&#41;
+
+,,,
+</code></pre><h2 id="the&#95;server">The server</h2><p>The server needs to forward all requests to the same <code>index.html</code> where our app lives. If you have access to the server you can configure it to do this. Or you can use netlify for hosting and have them do it. Yay, <del>serverless</del> other people's servers.</p><p>You'll need an account with netlify (they've got a free tier and don't ask for credit card details up front).</p><p>You could just drag and drop the folder containing your app into their ui, but this is 2017, and your app is probably already on one of github, bitbucket or gitlab.</p><p>If you give netlify access to the repo, they'll build and deploy it automatically any time you push to the specified branch.</p><p>There are three config options you need to be aware of.</p><h3 id="branch&#95;to&#95;deploy">Branch to deploy</h3><p>This is the branch you want to deploy. Netlify will re-build and -deploy your site every time you push to it.</p><h3 id="build&#95;command">Build command</h3><p>This is the command that builds your site.</p><pre><code>lein clean &amp;&amp; lein cljsbuild once min`
+</code></pre><h3 id="publish&#95;directory">Publish directory</h3><p>The directory to serve from.</p><pre><code>resources/public
+</code></pre><h3 id="&#95;redirects">&#95;redirects</h3><p>The last part of the puzzle is telling netlify to just forward anything to the app. That is accomplished by having a special <code>&#95;recirects</code> file in your publish directory.</p><p>There are <a href='https://www.netlify.com/docs/redirects/'>all sorts of things</a> you can do with it, but what we want is to simply pass everything on to our SPA. For that, the incantation is <code>/&#42; / 200</code>.</p><pre><code># from the root of the project
+echo &quot;/&#42; / 200&quot; &gt;&gt; resources/public/&#95;redirects
+</code></pre><p>And that's it. Now, whenever you push to the specified branch the site's built and deployed automatically.</p><p>The code in this post can be found in <a href='https://github.com/madstap/routing-example/commit/082adba3914d1b4180ae05998de991be80e6be63'>this commit</a> and the site is live <a href='https://engineer-deer-13022.netlify.com/about'>here</a>.</p>
+</div>
+
+<div id="post-tags">
+    <b>Tags: </b>
+    
+    <a href="/tags-output/netlify/">netlify</a>
+    
+    <a href="/tags-output/re-frame/">re-frame</a>
+    
+    <a href="/tags-output/routing/">routing</a>
+    
+    <a href="/tags-output/clojurescript/">clojurescript</a>
+    
+    <a href="/tags-output/SPA/">SPA</a>
+    
+</div>
+
+
+    <div id="prev-next">
+        
+        
+    </div>
+
+    
+    <div id="disqus_thread"></div>
+    <script type="text/javascript">
+        var disqus_config = function () {
+            this.page.url = "http://madstap.github.io/posts/hashless-routing/";
+            this.page.identifier = "Re-frame with the HTML history api";
+        };
+        (function() {
+            var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+            dsq.src = '//madstap.disqus.com/embed.js';
+            (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+        })();
+    </script>
+    
+
+
+</div>
+
+            </div>
+        </div>
+
+        <div class="col-md-3">
+          <div id="sidebar">
+
+                <!-- There's not really anything to put here, yet. -->
+                <!-- <h3>Links</h3> -->
+                <!-- <ul id="links"> -->
+                <!--     <li><a href="http://cryogenweb.org/docs/home.html">Cryogen Docs</a></li> -->
+                <!--     <li><a href="http://carmenla.me/blog/archives">Carmen's Blog</a></li> -->
+                <!--      -->
+                <!--     <li><a href="/another-page/">Another Page</a></li> -->
+                <!--      -->
+                <!-- </ul> -->
+
+                
+                <div id="recent">
+                    <h3>Recent Posts</h3>
+                    <ul>
+                        
+                        <li><a href="/posts/hashless-routing/">Re-frame with the HTML history api</a></li>
+                        
+                    </ul>
+                </div>
+                
+                
+                <div id="tags">
+                    <h3>Tags</h3>
+                    <ul>
+                        
+                        <li><a href="/tags-output/netlify/">netlify</a></li>
+                        
+                        <li><a href="/tags-output/re-frame/">re-frame</a></li>
+                        
+                        <li><a href="/tags-output/routing/">routing</a></li>
+                        
+                        <li><a href="/tags-output/clojurescript/">clojurescript</a></li>
+                        
+                        <li><a href="/tags-output/SPA/">SPA</a></li>
+                        
+                    </ul>
+                </div>
+                
+            </div>
+        </div>
+    </div>
+    <footer>Copyright &copy; 2017 Aleksander Madland Stapnes
+        <p style="text-align: center;">Powered by <a href="http://cryogenweb.org">Cryogen</a></p></footer>
+</div>
+<script src="//code.jquery.com/jquery-1.11.0.min.js"></script>
+<script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.0/js/bootstrap.min.js"></script>
+<script src="/js/highlight.pack.js" type="text/javascript"></script>
+<script>hljs.initHighlightingOnLoad();</script>
+ <link rel="stylesheet" type="text/css" href=nil>
+<script>
+window.klipse_settings = null;
+</script>
+<script src=nil></script> 
+
+</body>
+</html>

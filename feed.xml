@@ -1,0 +1,124 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<rss version='2.0' xmlns:atom='http://www.w3.org/2005/Atom'>
+<channel>
+<atom:link href='http://madstap.github.io/' rel='self' type='application/rss+xml'/>
+<title>
+Recursive leap of faith
+</title>
+<link>
+http://madstap.github.io/
+</link>
+<description>
+Just another technical blog
+</description>
+<lastBuildDate>
+Mon, 04 Sep 2017 00:21:07 -0300
+</lastBuildDate>
+<generator>
+clj-rss
+</generator>
+<item>
+<guid>
+http://madstap.github.io/posts/hashless-routing/
+</guid>
+<link>
+http://madstap.github.io/posts/hashless-routing/
+</link>
+<title>
+Re-frame with the HTML history api
+</title>
+<description>
+&lt;p&gt;The default routing in the re-frame template is hash-based, which may be just what you need if you want to deploy it on a &quot;dumb server&quot;.&lt;/p&gt;&lt;p&gt;If you can make the server forward all requests to where your app lives, however, (&lt;a href='https://caniuse.com/#search=history'&gt;and don't need to support ancient browsers&lt;/a&gt;) then you can use the HTML history api. It makes your fancy SPA seem like an old-school server-responds-with-html website. Which is good, cause that's how people expect the web to work. (The back button, links, etc.)&lt;/p&gt;&lt;p&gt;The first part of &lt;a href='http://krasimirtsonev.com/blog/article/deep-dive-into-client-side-routing-navigo-pushstate-hash'&gt;this blog post&lt;/a&gt; does a good job of explaining the lay of the land when it comes to client side routing. (In the second part they implement a router, but we'll use one that someone else built.)&lt;/p&gt;&lt;h2 id=&quot;ingredients&quot;&gt;Ingredients&lt;/h2&gt;&lt;p&gt;We'll interact with html history through &lt;a href='https://github.com/kibu-australia/pushy'&gt;pushy&lt;/a&gt;, define our routes using &lt;a href='https://github.com/juxt/bidi'&gt;bidi&lt;/a&gt; and use &lt;a href='https://www.netlify.com'&gt;netlify&lt;/a&gt; for &quot;serverless&quot; hosting.&lt;/p&gt;&lt;p&gt;Basically someone already did all the hard work, all that's left is to glue the pieces together.&lt;/p&gt;&lt;h2 id=&quot;the&amp;#95;client&quot;&gt;The client&lt;/h2&gt;&lt;p&gt;Setting up clojurescript by hand can be fiddly, so we'll use the &lt;a href='https://github.com/Day8/re-frame-template'&gt;re-frame template&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;Start by summoning a re-frame project from the void.&lt;/p&gt;&lt;pre&gt;&lt;code&gt;lein new re-frame spa-routing +cider +routes
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;(You can skip the &lt;code&gt;+cider&lt;/code&gt; part if you use another editor/ide.)&lt;/p&gt;&lt;p&gt;&lt;code&gt;+routes&lt;/code&gt; means that it will already be set up with routing via &lt;a href='https://github.com/gf3/secretary'&gt;secretary&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;It's nice to use this a comparison, and we'll keep the subscription and event handler as-is.&lt;/p&gt;&lt;p&gt;(Existing code that's irrelevant is represented by &lt;code&gt;,,,&lt;/code&gt;.)&lt;/p&gt;&lt;h3 id=&quot;deps&quot;&gt;Deps&lt;/h3&gt;&lt;p&gt;We need to depend on pushy and bidi.&lt;/p&gt;&lt;p&gt;&lt;code&gt;project.clj&lt;/code&gt;&lt;pre&gt;&lt;code class=&quot;clojure&quot;&gt;&amp;#40;defproject spa-routing &amp;quot;0.1.0-SNAPSHOT&amp;quot;
+  :dependencies &amp;#91;,,,
+                 &amp;#91;kibu/pushy &amp;quot;0.3.8&amp;quot;&amp;#93;
+                 &amp;#91;bidi &amp;quot;2.1.2&amp;quot;&amp;#93;
+                 ,,,&amp;#93;
+  ,,,&amp;#41;
+&lt;/code&gt;&lt;/pre&gt;&lt;/p&gt;&lt;h3 id=&quot;routes&quot;&gt;Routes&lt;/h3&gt;&lt;p&gt;Then the routes themselves. The code in &lt;code&gt;src/cljs/spa-routing/routes.cljs&lt;/code&gt; both defines the routes and connects them to the browser. It looks like this:&lt;/p&gt;&lt;pre&gt;&lt;code class=&quot;clojure&quot;&gt;&amp;#40;ns spa-routing.routes
+  &amp;#40;:require-macros &amp;#91;secretary.core :refer &amp;#91;defroute&amp;#93;&amp;#93;&amp;#41;
+  &amp;#40;:import goog.History&amp;#41;
+  &amp;#40;:require &amp;#91;secretary.core :as secretary&amp;#93;
+            &amp;#91;goog.events :as events&amp;#93;
+            &amp;#91;goog.history.EventType :as EventType&amp;#93;
+            &amp;#91;re-frame.core :as re-frame&amp;#93;&amp;#41;&amp;#41;
+
+&amp;#40;defn hook-browser-navigation! &amp;#91;&amp;#93;
+  &amp;#40;doto &amp;#40;History.&amp;#41;
+    &amp;#40;events/listen
+     EventType/NAVIGATE
+     &amp;#40;fn &amp;#91;event&amp;#93;
+       &amp;#40;secretary/dispatch! &amp;#40;.-token event&amp;#41;&amp;#41;&amp;#41;&amp;#41;
+    &amp;#40;.setEnabled true&amp;#41;&amp;#41;&amp;#41;
+
+&amp;#40;defn app-routes &amp;#91;&amp;#93;
+  &amp;#40;secretary/set-config! :prefix &amp;quot;#&amp;quot;&amp;#41;
+  ;; --------------------
+  ;; define routes here
+  &amp;#40;defroute &amp;quot;/&amp;quot; &amp;#91;&amp;#93;
+    &amp;#40;re-frame/dispatch &amp;#91;:set-active-panel :home-panel&amp;#93;&amp;#41;&amp;#41;
+
+  &amp;#40;defroute &amp;quot;/about&amp;quot; &amp;#91;&amp;#93;
+    &amp;#40;re-frame/dispatch &amp;#91;:set-active-panel :about-panel&amp;#93;&amp;#41;&amp;#41;
+
+
+  ;; --------------------
+  &amp;#40;hook-browser-navigation!&amp;#41;&amp;#41;
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;This mixes &quot;what are the routes&quot; with &quot;what to do when a route changes&quot; and &quot;how to hook it up to the browser&quot;.&lt;/p&gt;&lt;p&gt;We'll put the parts where it's glued to re-frame and the browser elsewhere and reserve this namespace purely for defining the routes.&lt;/p&gt;&lt;p&gt;Change &lt;code&gt;src/cljs/spa-routing/routes.cljs&lt;/code&gt; so it looks like this:&lt;/p&gt;&lt;pre&gt;&lt;code class=&quot;clojure&quot;&gt;&amp;#40;ns spa-routing.routes
+  &amp;#40;:require
+   &amp;#91;bidi.bidi :as bidi&amp;#93;&amp;#41;&amp;#41;
+
+&amp;#40;def routes
+  &amp;#91;&amp;quot;/&amp;quot; {&amp;quot;&amp;quot; :home-panel
+        &amp;quot;about&amp;quot; :about-panel}&amp;#93;&amp;#41;
+
+&amp;#40;def match &amp;#40;partial bidi/match-route routes&amp;#41;&amp;#41;
+
+&amp;#40;def path &amp;#40;partial bidi/path-for routes&amp;#41;&amp;#41;
+&lt;/code&gt;&lt;/pre&gt;&lt;h3 id=&quot;wiring&quot;&gt;Wiring&lt;/h3&gt;&lt;p&gt;Now that we have our routes, we need to hook them up to the browser and to re-frame.&lt;/p&gt;&lt;p&gt;I like to do this in &lt;code&gt;src/cljs/spa-routing/core.cljs&lt;/code&gt;.&lt;/p&gt;&lt;pre&gt;&lt;code class=&quot;clojure&quot;&gt;&amp;#40;ns spa-routing.core
+  &amp;#40;:require ,,,
+            &amp;#91;pushy.core :as pushy&amp;#93;
+            &amp;#91;spa-routing.routes :as routes&amp;#93;
+            ,,,&amp;#41;&amp;#41;
+
+&amp;#40;defn start-routing! &amp;#91;&amp;#93;
+  &amp;#40;pushy/start! &amp;#40;pushy/pushy #&amp;#40;re-frame/dispatch &amp;#91;:set-active-panel %&amp;#93;&amp;#41;
+                             #&amp;#40;:handler &amp;#40;routes/match %&amp;#41;&amp;#41;&amp;#41;&amp;#41;&amp;#41;
+
+&amp;#40;defn dev-setup &amp;#91;&amp;#93; ,,,&amp;#41;
+
+&amp;#40;defn mount-root &amp;#91;&amp;#93; ,,,&amp;#41;
+
+&amp;#40;defn &amp;#94;:export init &amp;#91;&amp;#93;
+  &amp;#40;start-routing!&amp;#41;
+  ,,,&amp;#41;
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;As you can see, pushy takes two functions. What to do when there's a match and the matching function. We hook this up to the existing re-frame event that came with the &lt;code&gt;+routes&lt;/code&gt; option and the &lt;code&gt;match&lt;/code&gt; function that we defined in &lt;code&gt;routes.cljs&lt;/code&gt;.&lt;/p&gt;&lt;p&gt;This is much nicer than using the history api through interop.&lt;/p&gt;&lt;h3 id=&quot;views&quot;&gt;Views&lt;/h3&gt;&lt;p&gt;The original template uses strings for the routes in &lt;code&gt;src/cljs/spa-routing/views.cljs&lt;/code&gt;. This is quite fragile, so we'll take advantage of fact that bidi is bi-directional by using the &lt;code&gt;path&lt;/code&gt; function we made in &lt;code&gt;routes.cljs&lt;/code&gt;.&lt;/p&gt;&lt;pre&gt;&lt;code class=&quot;clojure&quot;&gt;&amp;#40;ns spa-routing.views
+  &amp;#40;:require &amp;#91;re-frame.core :as re-frame&amp;#93;
+            &amp;#91;spa-routing.routes :as routes&amp;#93;&amp;#41;&amp;#41; ;; &amp;lt;= require routes
+
+&amp;#40;defn home-panel &amp;#91;&amp;#93;
+  &amp;#40;let &amp;#91;name &amp;#40;re-frame/subscribe &amp;#91;:name&amp;#93;&amp;#41;&amp;#93;
+    &amp;#40;fn &amp;#91;&amp;#93;
+      &amp;#91;:div &amp;#40;str &amp;quot;Hello from &amp;quot; @name &amp;quot;. This is the Home Page.&amp;quot;&amp;#41;
+       &amp;#91;:div &amp;#91;:a {:href &amp;#40;routes/path :about-panel&amp;#41;} ;; &amp;lt;= Use helper here
+        &amp;quot;go to About Page&amp;quot;&amp;#93;&amp;#93;&amp;#93;&amp;#41;&amp;#41;&amp;#41;
+
+&amp;#40;defn about-panel &amp;#91;&amp;#93;
+  &amp;#40;fn &amp;#91;&amp;#93;
+    &amp;#91;:div &amp;quot;This is the About Page.&amp;quot;
+     &amp;#91;:div &amp;#91;:a {:href &amp;#40;routes/path :home-panel&amp;#41;} ;; &amp;lt;= and here.
+      &amp;quot;go to Home Page&amp;quot;&amp;#93;&amp;#93;&amp;#93;&amp;#41;&amp;#41;
+
+,,,
+&lt;/code&gt;&lt;/pre&gt;&lt;h2 id=&quot;the&amp;#95;server&quot;&gt;The server&lt;/h2&gt;&lt;p&gt;The server needs to forward all requests to the same &lt;code&gt;index.html&lt;/code&gt; where our app lives. If you have access to the server you can configure it to do this. Or you can use netlify for hosting and have them do it. Yay, &lt;del&gt;serverless&lt;/del&gt; other people's servers.&lt;/p&gt;&lt;p&gt;You'll need an account with netlify (they've got a free tier and don't ask for credit card details up front).&lt;/p&gt;&lt;p&gt;You could just drag and drop the folder containing your app into their ui, but this is 2017, and your app is probably already on one of github, bitbucket or gitlab.&lt;/p&gt;&lt;p&gt;If you give netlify access to the repo, they'll build and deploy it automatically any time you push to the specified branch.&lt;/p&gt;&lt;p&gt;There are three config options you need to be aware of.&lt;/p&gt;&lt;h3 id=&quot;branch&amp;#95;to&amp;#95;deploy&quot;&gt;Branch to deploy&lt;/h3&gt;&lt;p&gt;This is the branch you want to deploy. Netlify will re-build and -deploy your site every time you push to it.&lt;/p&gt;&lt;h3 id=&quot;build&amp;#95;command&quot;&gt;Build command&lt;/h3&gt;&lt;p&gt;This is the command that builds your site.&lt;/p&gt;&lt;pre&gt;&lt;code&gt;lein clean &amp;amp;&amp;amp; lein cljsbuild once min`
+&lt;/code&gt;&lt;/pre&gt;&lt;h3 id=&quot;publish&amp;#95;directory&quot;&gt;Publish directory&lt;/h3&gt;&lt;p&gt;The directory to serve from.&lt;/p&gt;&lt;pre&gt;&lt;code&gt;resources/public
+&lt;/code&gt;&lt;/pre&gt;&lt;h3 id=&quot;&amp;#95;redirects&quot;&gt;&amp;#95;redirects&lt;/h3&gt;&lt;p&gt;The last part of the puzzle is telling netlify to just forward anything to the app. That is accomplished by having a special &lt;code&gt;&amp;#95;recirects&lt;/code&gt; file in your publish directory.&lt;/p&gt;&lt;p&gt;There are &lt;a href='https://www.netlify.com/docs/redirects/'&gt;all sorts of things&lt;/a&gt; you can do with it, but what we want is to simply pass everything on to our SPA. For that, the incantation is &lt;code&gt;/&amp;#42; / 200&lt;/code&gt;.&lt;/p&gt;&lt;pre&gt;&lt;code&gt;# from the root of the project
+echo &amp;quot;/&amp;#42; / 200&amp;quot; &amp;gt;&amp;gt; resources/public/&amp;#95;redirects
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;And that's it. Now, whenever you push to the specified branch the site's built and deployed automatically.&lt;/p&gt;&lt;p&gt;The code in this post can be found in &lt;a href='https://github.com/madstap/routing-example/commit/082adba3914d1b4180ae05998de991be80e6be63'&gt;this commit&lt;/a&gt; and the site is live &lt;a href='https://engineer-deer-13022.netlify.com/about'&gt;here&lt;/a&gt;.&lt;/p&gt;
+</description>
+<pubDate>
+Mon, 04 Sep 2017 00:00:00 -0300
+</pubDate>
+</item>
+</channel>
+</rss>
