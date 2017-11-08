@@ -230,6 +230,15 @@
   ;; from calling (do-stuff x) for each x
   (dbg/a&gt;) ;=&gt; [,,,]
   )
+</code></pre><p>It also combines nicely with transducers.</p><pre><code>(def foo-xf
+  (comp (map frobnicate)
+        (map dbg/aconj&lt;)
+        (filter odd?)))
+
+(comment
+  ;; Returns a vector of the things that passed through foo-fx
+  (dbg/a&gt;) ;=&gt; [,,,]
+  )
 </code></pre><h2 id="conclusion">Conclusion</h2><p>A little clojure goes a long way, and this is true of debugging as much as anything. The combination of immutable values, data structure literals and the fact that almost everything in clojure is an expression that returns a value (modulo syntax inside macros) is what makes this possible.</p><p>The way that <code>reset!</code> works out of the box for this kind of debugging is very nice, and the rest of the stuff in this post and in hugin is trivial to implement.</p><p>I hope that this post adds to the common knowledge available on this subject. If you haven't already you should check out the other blog posts listed below, they're all well written and add talk about different aspects of debugging.</p><h2 id="further_reading">Further reading</h2><ul><li><a href="https://aphyr.com/posts/319-clojure-from-the-ground-up-debugging">Aphyr's clojure from the ground up</a></li><li><a href="http://blog.cognitect.com/blog/2017/6/5/repl-debugging-no-stacktrace-required">No stacktrace required</a></li><li><a href="https://blog.michielborkent.nl/blog/2017/05/25/inline-def-debugging/">The inline def technique</a>,</li><li><a href="https://eli.thegreenplace.net/2017/notes-on-debugging-clojure-code/">Notes on debugging clojure code</a></li></ul>
 </div>
 

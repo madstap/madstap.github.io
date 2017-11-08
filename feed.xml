@@ -12,7 +12,7 @@ http://madstap.github.io/
 Just another technical blog
 </description>
 <lastBuildDate>
-Tue, 07 Nov 2017 21:04:07 -0300
+Tue, 07 Nov 2017 22:44:55 -0300
 </lastBuildDate>
 <generator>
 clj-rss
@@ -186,6 +186,15 @@ Debugging made simple
 (comment
   ;; Now this returns a vector of all the return values
   ;; from calling (do-stuff x) for each x
+  (dbg/a&amp;gt;) ;=&amp;gt; [,,,]
+  )
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;It also combines nicely with transducers.&lt;/p&gt;&lt;pre&gt;&lt;code&gt;(def foo-xf
+  (comp (map frobnicate)
+        (map dbg/aconj&amp;lt;)
+        (filter odd?)))
+
+(comment
+  ;; Returns a vector of the things that passed through foo-fx
   (dbg/a&amp;gt;) ;=&amp;gt; [,,,]
   )
 &lt;/code&gt;&lt;/pre&gt;&lt;h2 id=&quot;conclusion&quot;&gt;Conclusion&lt;/h2&gt;&lt;p&gt;A little clojure goes a long way, and this is true of debugging as much as anything. The combination of immutable values, data structure literals and the fact that almost everything in clojure is an expression that returns a value (modulo syntax inside macros) is what makes this possible.&lt;/p&gt;&lt;p&gt;The way that &lt;code&gt;reset!&lt;/code&gt; works out of the box for this kind of debugging is very nice, and the rest of the stuff in this post and in hugin is trivial to implement.&lt;/p&gt;&lt;p&gt;I hope that this post adds to the common knowledge available on this subject. If you haven't already you should check out the other blog posts listed below, they're all well written and add talk about different aspects of debugging.&lt;/p&gt;&lt;h2 id=&quot;further_reading&quot;&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href=&quot;https://aphyr.com/posts/319-clojure-from-the-ground-up-debugging&quot;&gt;Aphyr's clojure from the ground up&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href=&quot;http://blog.cognitect.com/blog/2017/6/5/repl-debugging-no-stacktrace-required&quot;&gt;No stacktrace required&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href=&quot;https://blog.michielborkent.nl/blog/2017/05/25/inline-def-debugging/&quot;&gt;The inline def technique&lt;/a&gt;,&lt;/li&gt;&lt;li&gt;&lt;a href=&quot;https://eli.thegreenplace.net/2017/notes-on-debugging-clojure-code/&quot;&gt;Notes on debugging clojure code&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;
