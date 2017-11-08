@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <title>Recursive leap of faith: Debugging made simple</title>
+    <link rel="canonical" href="http://madstap.github.io/posts/dbg/">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href='https://fonts.googleapis.com/css?family=Alegreya:400italic,700italic,400,700' rel='stylesheet'
+          type='text/css'>
+    <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.0/css/bootstrap.min.css">
+    <link href="//maxcdn.bootstrapcdn.com/font-awesome/4.2.0/css/font-awesome.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.7.0/styles/default.min.css">
+    <link href="/css/screen.css" rel="stylesheet" type="text/css" />
+</head>
+<body>
+
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-60230742-3', 'auto');
+  ga('send', 'pageview');
+</script>
+
+<nav class="navbar navbar-default">
+    <div class="container">
+        <div class="navbar-header">
+            <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+            </button>
+            <a class="navbar-brand" href="/">Recursive leap of faith</a>
+        </div>
+        <div id="navbar" class="navbar-collapse collapse">
+            <ul class="nav navbar-nav navbar-right">
+                <li ><a href="/">Home</a></li>
+                <li
+                ><a href="/archives/">Archives</a></li>
+                
+                <li
+                >
+                <a href="/about/">About me</a>
+                </li>
+                
+                <li><a href="/feed.xml">RSS</a></li>
+            </ul>
+        </div><!--/.nav-collapse -->
+    </div><!--/.container-fluid -->
+</nav>
+
+
+<div class="container">
+
+
+    <div class="row">
+        <div class="col-lg-9">
+            <div id="content">
+                
+<div id="post">
+    <div class="post-header">
+    <div id="post-meta" class="row">
+        <div class="col-lg-6">November 7, 2017</div>
+        
+    </div>
+    <h2>Debugging made simple</h2>
+</div>
+<div>
+    <ol class="content"><li><a href="#printing_to_the_console_(yes,_really)">Printing to the console (yes, really)</a></li><li><a href="#the_environment">The environment</a></li><ol><li><a href="#the_repl">The REPL</a></li><li><a href="#the_parentheses">The parentheses</a></li></ol><li><a href="#when_printing_just_doesn&apos;t_cut_it:_the_debug_atom">When printing just doesn't cut it: The Debug Atom</a></li><li><a href="#a_library_is_born">A library is born</a></li><li><a href="#conclusion">Conclusion</a></li><li><a href="#further_reading">Further reading</a></li></ol>
+    <p>A common question for people comming to clojure is "How do I figure out what's wrong with my code?", and while there <i>are</i> step debuggers and whatnot, I don't tend to use them. In ruby I do, and anyone coming from ruby is probably gonna ask:</p><blockquote><p> Where's my <code>binding.pry</code>?! </p></blockquote><p>Have you tried ...?</p><h2 id="printing_to_the_console_(yes,_really)">Printing to the console (yes, really)</h2><p>In pure clojure/clojurescript, the "stuff" in the program is mostly represented by the built-in edn types, everything from users, sku's and line items to html to clojure code itself to the ast in the clojurescript compiler.</p><p>Because they are all <strong>immutable</strong> and have a <strong>literal representation</strong>, you usually get really far by simply printing the thing you're unsure about.</p><p>If I have a <code>frobnicate</code> function I can check what is being passed to it:</p><pre><code class="clojure">(defn frobnicate [user]
+  (prn user)
+  ;; code
+  )
+
+;; Prints something like
+{:user/email "fulano@example.com",
+ :user/roles #{:admin :user}
+ :user/scores [42 12]}
+
+;; Note: prn is for printing so it can be read back by the clojure reader,
+;;       so for debugging you should use prn instead of println.
+</code></pre><p>Which is nice, but <code>prn</code> returns nil and the thing we're unsure of what is is not always in an implicit <code>do</code>.</p><pre><code class="clojure">(defn parse-post
+  [meta content]
+  (let [[foo post] (do-stuff something meta content)
+    (merge foo (frobnicate bar post))))
+</code></pre><p>I suspect that there's something off about what frobnicate returned here, but to print that out to the console I have to re-order my code. If I re-order my code, there's a chance that I'll accidentally change it's meaning.</p><p>It'd be nice to work around that somehow.</p><pre><code class="clojure">(defn p&lt; [x] (prn x) x)
+
+(defn parse-post
+  [meta content]
+  (let [[foo post] (do-stuff something meta content)]
+    (merge foo (p&lt; (frobnicate bar post)))))
+</code></pre><p>Now I can see what frobnicate returned, and my code didn't change its meaning.</p><p>Sometimes you want to know about two things somewhere in the code, or even more things, and it'd be nice to label them so you can tell them apart at the repl.</p><pre><code>(defn p&lt;
+  ([x] (prn x) x)
+  ([msg x] (prn msg) (p&lt; x)))
+
+(defn parse-post
+  [meta content]
+  (let [[foo post] (p&lt; "do-stuff =&gt; " (do-stuff something meta content))]
+    (merge foo (p&lt; "frobnicate =&gt; " (frobnicate bar post)))))
+</code></pre><p>A surprisingly large amount of the time, that's all it takes. It's usually the first thing I do to test my assumptions about a piece of code.</p><p>Again, this is different from doing <code>println(foo.frobnicate(bar))</code> in java. If something is represented with the standard EDN data-structures you can know <i>everything about them</i> by just reading what's printed and in idiomatic clojure almost everything is just EDN.</p><p>This debugging method being effective depends on the dev environment fulfilling some basic requirements though, so let's take a quick detour and talk about that.</p><h2 id="the_environment">The environment</h2><h3 id="the_repl">The REPL</h3><p>Like Stuart Halloway <a href="http://blog.cognitect.com/blog/2017/6/5/repl-debugging-no-stacktrace-required/#blindly-subdivide-the-problem">explains in his post</a>, what I think of as repl driven development is to have a repl with my whole program loaded that's connected to my editor with at least two operations I can do from within my source file.</p><ul><li>Evaluate file</li><li>Evaluate last form (what comes immediately before my cursor)</li></ul><p><i>This should be possible to set up in any clojure editor/IDE, it's not just for emacs cultists.</i></p><p>The way I usually develop is by having the source file open in one window/tab (frame in emacs) and a repl connected to it open in another. I don't type in the repl itself, I interact with it by writing code directly in the file and executing parts of it.</p><pre><code class="clojure">(ns foo.core
+  (:require
+   [clojure.string :as str]))
+
+;; I put things that are starting to take shape at
+;; the top level of the file.
+
+(defn do-something [&amp; xs]
+  (filterv even? xs))
+
+(defn transmogrify [x]
+  (-&gt;&gt; (iterate (partial + 3) x) (take 3) (apply do-something)))
+
+(comment
+
+  ;; Things that are more experimental live wrapped inside of a comment
+  ;; macro. That way I can evaluate the whole file without stuff blowing up.
+
+  ;; This is what I would otherwise write in the repl prompt.
+  ;; Things like getting some data to mess around with.
+  (def some-data (slurp "https://example.com"))
+
+  ;; I build my functions up bit by bit.
+  (-&gt;&gt; (iterate (partial + 3) 39) (take 3))
+
+  ;; And put put my cursor at the end of of code I want to try out
+  ;; and hit evaluate last form.
+  ;; The result is shown right there, inside the file.
+  ;; (The cursor is represented by |)
+  (-&gt;&gt; (iterate (partial + 3) 39) (take 3))| =&gt; (39 42 45)
+
+  ;; I print stuff in the repl if it's big, or something
+  ;; I want to remember.
+  (prn (do-something (re-seq #"\d+" some-data)))
+
+  ;; It's very easy, after poking at my functions like this,
+  ;; to solidify this experimentation into tests.
+
+  ;; I see that it does what it's supposed to do
+  (transmogrify 39) | =&gt; [42]
+
+  ;; So before I commit I copy this into test/foo/core-test.clj as
+  (is (= [42] (transmogrify 39)))
+
+  ;; I usually remove this part before committing, but sometimes
+  ;; leaving a part of it can help explain something to future readers.
+
+  )
+</code></pre><p>Your mileage may vary, but I find this way of working to be Very Nice.</p><h3 id="the_parentheses">The parentheses</h3><p>The other thing that you need is something that manages both your parens <i>and indentation</i> for you. In my opinion this is not optional in a lisp.</p><p>If you're starting out it'll feel really strange for a little while, not very long, and you'll forever thank yourself when it starts to feel natural.</p><blockquote><p> If you think paredit is not for you then you need to become the  kind of person that paredit is for. </p></blockquote><p>The parens are how the editor knows the structure of your code and the indentation is how you visualize the nesting.</p><p>When you auto-indent, <i>you can see if the nesting is wrong by looking at the indentation</i>. Also you'll learn to properly format the code so it's easy for people to understand.</p><p>Now, as with most things, your mileage may vary. You might be perfectly happy with the hack, compile, run cycle and love manually balancing parentheses. And that's fine. These techniques just won't work as well.</p><h2 id="when_printing_just_doesn't_cut_it:_the_debug_atom">When printing just doesn't cut it: The Debug Atom</h2><p>Sometimes it's not enough just to look at something, you want to poke at it as well. Maybe it's some opaque java object. Maybe it's very big and impractical to print. A nice approach to this is the "debug atom" pattern.</p><pre><code class="clojure">(def a (atom ::nothing))
+
+;; Again I want to know what the call to frobnicate returns
+(defn parse-post
+  [meta content]
+  (let [[foo post] (do-stuff something meta content)]
+    (merge foo (reset! a (frobnicate bar post)))))
+
+(comment
+  ;; Now I can access the return value from frobnicate here
+  @a
+  )
+</code></pre><p><code>reset!</code> returns the value it puts into the atom, so we can just wrap it around things right out of the box without changing the meaning of our code. That's nice.</p><p>Notice how the atom starts out with a namespaced keyword inside. That's to distinguish between frobnicate returning <code>nil</code> and not getting called at all.</p><p>If you want to know more than one value, you can simply use more than one atom.</p><pre><code class="clojure">(def do-stuff-a (atom ::nothing))
+(def frobnicate-a (atom ::nothing))
+
+(defn parse-post
+  [meta content]
+  (let [[foo post] (reset! do-stuff-a (do-stuff something meta content))]
+    (merge foo (reset! frobnicate-a (frobnicate bar post)))))
+
+(comment
+  @do-stuff-a
+  @frobnicate-a
+  )
+</code></pre><p>And voila, a minimal complexity, vanilla clojure(script) alternative to debuggers.</p><h2 id="a_library_is_born">A library is born</h2><p>Multiple debug atoms are slightly verbose though, and I've typed the characters <code>(defn p&lt; [x] (prn x) x)</code> way too many times.</p><p>So I wrote a <a href="https://github.com/madstap/hugin">tiny library.</a> The current version is <code>[madstap/hugin "0.1.4"]</code>.</p><p>It's called hugin after one of the norse god Odin's ravens. They fly around the world gathering information, then report it back to him.</p><p>The debug atom setup it uses is slightly different:</p><pre><code class="clojure">(ns hugin.dbg)
+
+(defonce a (atom {}))
+
+(defn a&lt;
+  ([x] (a&lt; ::default x))
+  ([k x]
+   (swap! a assoc k x)
+   x))
+
+(defn a&gt;
+  ([] (a&gt; ::default))
+  ([k] (get @a k ::nothing)))
+
+(defn nuke []
+  (reset! a {}))
+</code></pre><p>There is only one atom, with functions wrapping the access to it. This makes it less verbose which is especially nice for debugging. It also makes  it possible to have a <code>nuke</code> function that resets everything.</p><p>If I want a single value I can do that:</p><pre><code class="clojure">(ns foo.core
+  (:require
+   [hugin.dbg :as dbg]))
+
+(defn parse-post
+  [meta content]
+  (let [[foo post] (do-stuff something meta content)]
+    (merge foo (dbg/a&lt; (frobnicate bar post)))))
+
+(comment
+  (dbg/a&gt;)
+  )
+</code></pre><p>Or multiple values:</p><pre><code class="clojure">(defn parse-post
+  [meta content]
+  (let [[foo post] (dbg/a&lt; :do-stuff (do-stuff something meta content))]
+    (merge foo (dbg/a&lt; :frobnicate (frobnicate bar post)))))
+
+(comment
+  (dbg/a&gt; :do-stuff)
+  (dbg/a&gt; :frobnicate)
+  )
+</code></pre><p>Sometimes you want to know about a succession of values. Inside a of a <code>reduce</code> or a <code>loop</code>. The things coming off of a <code>core.async</code> channel. Maybe you're making a webapp and want to see the succession of requests to a specific endpoint.</p><p>Hugin has got you covered. (He is a nice raven.)</p><pre><code class="clojure">(ns hugin.dbg)
+
+,,,
+
+;; This could do with a better name,
+;; please don't hesitate to suggest one in the comments.
+(defn aconj&lt;
+  ([x] (aconj&lt; ::default x))
+  ([k v]
+   (swap! a update k (fnil conj []) v)
+   v))
+</code></pre><p>And it is used like this:</p><pre><code class="clojure">(defn do-things [xs]
+  (reduce (fn [acc x]
+            (merge acc (dbg/aconj&lt; (do-stuff x))))
+          {}, xs))
+
+(comment
+  ;; Now this returns a vector of all the return values
+  ;; from calling (do-stuff x) for each x
+  (dbg/a&gt;) ;=&gt; [,,,]
+  )
+</code></pre><h2 id="conclusion">Conclusion</h2><p>A little clojure goes a long way, and this is true of debugging as much as anything. The combination of immutable values, data structure literals and the fact that almost everything in clojure is an expression that returns a value (modulo syntax inside macros) is what makes this possible.</p><p>The way that <code>reset!</code> works out of the box for this kind of debugging is very nice, and the rest of the stuff in this post and in hugin is trivial to implement.</p><p>I hope that this post adds to the common knowledge available on this subject. If you haven't already you should check out the other blog posts listed below, they're all well written and add talk about different aspects of debugging.</p><h2 id="further_reading">Further reading</h2><ul><li><a href="https://aphyr.com/posts/319-clojure-from-the-ground-up-debugging">Aphyr's clojure from the ground up</a></li><li><a href="http://blog.cognitect.com/blog/2017/6/5/repl-debugging-no-stacktrace-required">No stacktrace required</a></li><li><a href="https://blog.michielborkent.nl/blog/2017/05/25/inline-def-debugging/">The inline def technique</a>,</li><li><a href="https://eli.thegreenplace.net/2017/notes-on-debugging-clojure-code/">Notes on debugging clojure code</a></li></ul>
+</div>
+
+<div id="post-tags">
+    <b>Tags: </b>
+    
+    <a href="/tags/clojure/">clojure</a>
+    
+    <a href="/tags/debugging/">debugging</a>
+    
+</div>
+
+
+    <div id="prev-next">
+        
+        
+        <a class="right" href="/posts/hashless-routing/">Re-frame with the HTML history api &raquo;</a>
+        
+    </div>
+
+    
+    <div id="disqus_thread"></div>
+    <script type="text/javascript">
+        var disqus_config = function () {
+            this.page.url = "http://madstap.github.io/posts/dbg/";
+            this.page.identifier = "Debugging made simple";
+        };
+        (function() {
+            var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+            dsq.src = '//madstap.disqus.com/embed.js';
+            (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+        })();
+    </script>
+    
+
+
+</div>
+
+            </div>
+        </div>
+
+        <div class="col-md-3">
+          <div id="sidebar">
+
+                <!-- There's not really anything to put here, yet. -->
+                <!-- <h3>Links</h3> -->
+                <!-- <ul id="links"> -->
+                <!--     <li><a href="http://cryogenweb.org/docs/home.html">Cryogen Docs</a></li> -->
+                <!--     <li><a href="http://carmenla.me/blog/archives">Carmen's Blog</a></li> -->
+                <!--      -->
+                <!-- </ul> -->
+
+                
+                <div id="recent">
+                    <h3>Recent Posts</h3>
+                    <ul>
+                        
+                        <li><a href="/posts/dbg/">Debugging made simple</a></li>
+                        
+                        <li><a href="/posts/hashless-routing/">Re-frame with the HTML history api</a></li>
+                        
+                    </ul>
+                </div>
+                
+                
+                <div id="tags">
+                    <h3>Tags</h3>
+                    <ul>
+                        
+                        <li><a href="/tags/clojure/">clojure</a></li>
+                        
+                        <li><a href="/tags/debugging/">debugging</a></li>
+                        
+                        <li><a href="/tags/netlify/">netlify</a></li>
+                        
+                        <li><a href="/tags/re-frame/">re-frame</a></li>
+                        
+                        <li><a href="/tags/routing/">routing</a></li>
+                        
+                        <li><a href="/tags/clojurescript/">clojurescript</a></li>
+                        
+                        <li><a href="/tags/SPA/">SPA</a></li>
+                        
+                    </ul>
+                </div>
+                
+            </div>
+        </div>
+    </div>
+    <footer>Copyright &copy; 2017 Aleksander Madland Stapnes
+        <p style="text-align: center;">Powered by <a href="http://cryogenweb.org">Cryogen</a></p></footer>
+</div>
+<script src="//code.jquery.com/jquery-1.11.0.min.js"></script>
+<script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.0/js/bootstrap.min.js"></script>
+<script src="/js/highlight.pack.js" type="text/javascript"></script>
+<script>hljs.initHighlightingOnLoad();</script>
+ <link rel="stylesheet" type="text/css" href="https://storage.googleapis.com/app.klipse.tech/css/codemirror.css">
+<script>
+window.klipse_settings = {
+  "selector" : ".eval-cljs",
+  "selector_reagent" : ".eval-reagent",
+  "selector_eval_ruby" : ".eval-rb",
+  "selector_eval_python_client" : ".eval-py"
+};
+</script>
+<script src="https://storage.googleapis.com/app.klipse.tech/plugin_prod/js/klipse_plugin.min.js"></script> 
+
+</body>
+</html>

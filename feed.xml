@@ -12,11 +12,188 @@ http://madstap.github.io/
 Just another technical blog
 </description>
 <lastBuildDate>
-Mon, 30 Oct 2017 00:54:33 -0300
+Tue, 07 Nov 2017 21:04:07 -0300
 </lastBuildDate>
 <generator>
 clj-rss
 </generator>
+<item>
+<guid>
+http://madstap.github.io/posts/dbg/
+</guid>
+<link>
+http://madstap.github.io/posts/dbg/
+</link>
+<title>
+Debugging made simple
+</title>
+<description>
+&lt;p&gt;A common question for people comming to clojure is &quot;How do I figure out what's wrong with my code?&quot;, and while there &lt;i&gt;are&lt;/i&gt; step debuggers and whatnot, I don't tend to use them. In ruby I do, and anyone coming from ruby is probably gonna ask:&lt;/p&gt;&lt;blockquote&gt;&lt;p&gt; Where's my &lt;code&gt;binding.pry&lt;/code&gt;?! &lt;/p&gt;&lt;/blockquote&gt;&lt;p&gt;Have you tried ...?&lt;/p&gt;&lt;h2 id=&quot;printing_to_the_console_(yes,_really)&quot;&gt;Printing to the console (yes, really)&lt;/h2&gt;&lt;p&gt;In pure clojure/clojurescript, the &quot;stuff&quot; in the program is mostly represented by the built-in edn types, everything from users, sku's and line items to html to clojure code itself to the ast in the clojurescript compiler.&lt;/p&gt;&lt;p&gt;Because they are all &lt;strong&gt;immutable&lt;/strong&gt; and have a &lt;strong&gt;literal representation&lt;/strong&gt;, you usually get really far by simply printing the thing you're unsure about.&lt;/p&gt;&lt;p&gt;If I have a &lt;code&gt;frobnicate&lt;/code&gt; function I can check what is being passed to it:&lt;/p&gt;&lt;pre&gt;&lt;code class=&quot;clojure&quot;&gt;(defn frobnicate [user]
+  (prn user)
+  ;; code
+  )
+
+;; Prints something like
+{:user/email &quot;fulano@example.com&quot;,
+ :user/roles #{:admin :user}
+ :user/scores [42 12]}
+
+;; Note: prn is for printing so it can be read back by the clojure reader,
+;;       so for debugging you should use prn instead of println.
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;Which is nice, but &lt;code&gt;prn&lt;/code&gt; returns nil and the thing we're unsure of what is is not always in an implicit &lt;code&gt;do&lt;/code&gt;.&lt;/p&gt;&lt;pre&gt;&lt;code class=&quot;clojure&quot;&gt;(defn parse-post
+  [meta content]
+  (let [[foo post] (do-stuff something meta content)
+    (merge foo (frobnicate bar post))))
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;I suspect that there's something off about what frobnicate returned here, but to print that out to the console I have to re-order my code. If I re-order my code, there's a chance that I'll accidentally change it's meaning.&lt;/p&gt;&lt;p&gt;It'd be nice to work around that somehow.&lt;/p&gt;&lt;pre&gt;&lt;code class=&quot;clojure&quot;&gt;(defn p&amp;lt; [x] (prn x) x)
+
+(defn parse-post
+  [meta content]
+  (let [[foo post] (do-stuff something meta content)]
+    (merge foo (p&amp;lt; (frobnicate bar post)))))
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;Now I can see what frobnicate returned, and my code didn't change its meaning.&lt;/p&gt;&lt;p&gt;Sometimes you want to know about two things somewhere in the code, or even more things, and it'd be nice to label them so you can tell them apart at the repl.&lt;/p&gt;&lt;pre&gt;&lt;code&gt;(defn p&amp;lt;
+  ([x] (prn x) x)
+  ([msg x] (prn msg) (p&amp;lt; x)))
+
+(defn parse-post
+  [meta content]
+  (let [[foo post] (p&amp;lt; &quot;do-stuff =&amp;gt; &quot; (do-stuff something meta content))]
+    (merge foo (p&amp;lt; &quot;frobnicate =&amp;gt; &quot; (frobnicate bar post)))))
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;A surprisingly large amount of the time, that's all it takes. It's usually the first thing I do to test my assumptions about a piece of code.&lt;/p&gt;&lt;p&gt;Again, this is different from doing &lt;code&gt;println(foo.frobnicate(bar))&lt;/code&gt; in java. If something is represented with the standard EDN data-structures you can know &lt;i&gt;everything about them&lt;/i&gt; by just reading what's printed and in idiomatic clojure almost everything is just EDN.&lt;/p&gt;&lt;p&gt;This debugging method being effective depends on the dev environment fulfilling some basic requirements though, so let's take a quick detour and talk about that.&lt;/p&gt;&lt;h2 id=&quot;the_environment&quot;&gt;The environment&lt;/h2&gt;&lt;h3 id=&quot;the_repl&quot;&gt;The REPL&lt;/h3&gt;&lt;p&gt;Like Stuart Halloway &lt;a href=&quot;http://blog.cognitect.com/blog/2017/6/5/repl-debugging-no-stacktrace-required/#blindly-subdivide-the-problem&quot;&gt;explains in his post&lt;/a&gt;, what I think of as repl driven development is to have a repl with my whole program loaded that's connected to my editor with at least two operations I can do from within my source file.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Evaluate file&lt;/li&gt;&lt;li&gt;Evaluate last form (what comes immediately before my cursor)&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;&lt;i&gt;This should be possible to set up in any clojure editor/IDE, it's not just for emacs cultists.&lt;/i&gt;&lt;/p&gt;&lt;p&gt;The way I usually develop is by having the source file open in one window/tab (frame in emacs) and a repl connected to it open in another. I don't type in the repl itself, I interact with it by writing code directly in the file and executing parts of it.&lt;/p&gt;&lt;pre&gt;&lt;code class=&quot;clojure&quot;&gt;(ns foo.core
+  (:require
+   [clojure.string :as str]))
+
+;; I put things that are starting to take shape at
+;; the top level of the file.
+
+(defn do-something [&amp;amp; xs]
+  (filterv even? xs))
+
+(defn transmogrify [x]
+  (-&amp;gt;&amp;gt; (iterate (partial + 3) x) (take 3) (apply do-something)))
+
+(comment
+
+  ;; Things that are more experimental live wrapped inside of a comment
+  ;; macro. That way I can evaluate the whole file without stuff blowing up.
+
+  ;; This is what I would otherwise write in the repl prompt.
+  ;; Things like getting some data to mess around with.
+  (def some-data (slurp &quot;https://example.com&quot;))
+
+  ;; I build my functions up bit by bit.
+  (-&amp;gt;&amp;gt; (iterate (partial + 3) 39) (take 3))
+
+  ;; And put put my cursor at the end of of code I want to try out
+  ;; and hit evaluate last form.
+  ;; The result is shown right there, inside the file.
+  ;; (The cursor is represented by |)
+  (-&amp;gt;&amp;gt; (iterate (partial + 3) 39) (take 3))| =&amp;gt; (39 42 45)
+
+  ;; I print stuff in the repl if it's big, or something
+  ;; I want to remember.
+  (prn (do-something (re-seq #&quot;\d+&quot; some-data)))
+
+  ;; It's very easy, after poking at my functions like this,
+  ;; to solidify this experimentation into tests.
+
+  ;; I see that it does what it's supposed to do
+  (transmogrify 39) | =&amp;gt; [42]
+
+  ;; So before I commit I copy this into test/foo/core-test.clj as
+  (is (= [42] (transmogrify 39)))
+
+  ;; I usually remove this part before committing, but sometimes
+  ;; leaving a part of it can help explain something to future readers.
+
+  )
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;Your mileage may vary, but I find this way of working to be Very Nice.&lt;/p&gt;&lt;h3 id=&quot;the_parentheses&quot;&gt;The parentheses&lt;/h3&gt;&lt;p&gt;The other thing that you need is something that manages both your parens &lt;i&gt;and indentation&lt;/i&gt; for you. In my opinion this is not optional in a lisp.&lt;/p&gt;&lt;p&gt;If you're starting out it'll feel really strange for a little while, not very long, and you'll forever thank yourself when it starts to feel natural.&lt;/p&gt;&lt;blockquote&gt;&lt;p&gt; If you think paredit is not for you then you need to become the  kind of person that paredit is for. &lt;/p&gt;&lt;/blockquote&gt;&lt;p&gt;The parens are how the editor knows the structure of your code and the indentation is how you visualize the nesting.&lt;/p&gt;&lt;p&gt;When you auto-indent, &lt;i&gt;you can see if the nesting is wrong by looking at the indentation&lt;/i&gt;. Also you'll learn to properly format the code so it's easy for people to understand.&lt;/p&gt;&lt;p&gt;Now, as with most things, your mileage may vary. You might be perfectly happy with the hack, compile, run cycle and love manually balancing parentheses. And that's fine. These techniques just won't work as well.&lt;/p&gt;&lt;h2 id=&quot;when_printing_just_doesn't_cut_it:_the_debug_atom&quot;&gt;When printing just doesn't cut it: The Debug Atom&lt;/h2&gt;&lt;p&gt;Sometimes it's not enough just to look at something, you want to poke at it as well. Maybe it's some opaque java object. Maybe it's very big and impractical to print. A nice approach to this is the &quot;debug atom&quot; pattern.&lt;/p&gt;&lt;pre&gt;&lt;code class=&quot;clojure&quot;&gt;(def a (atom ::nothing))
+
+;; Again I want to know what the call to frobnicate returns
+(defn parse-post
+  [meta content]
+  (let [[foo post] (do-stuff something meta content)]
+    (merge foo (reset! a (frobnicate bar post)))))
+
+(comment
+  ;; Now I can access the return value from frobnicate here
+  @a
+  )
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;&lt;code&gt;reset!&lt;/code&gt; returns the value it puts into the atom, so we can just wrap it around things right out of the box without changing the meaning of our code. That's nice.&lt;/p&gt;&lt;p&gt;Notice how the atom starts out with a namespaced keyword inside. That's to distinguish between frobnicate returning &lt;code&gt;nil&lt;/code&gt; and not getting called at all.&lt;/p&gt;&lt;p&gt;If you want to know more than one value, you can simply use more than one atom.&lt;/p&gt;&lt;pre&gt;&lt;code class=&quot;clojure&quot;&gt;(def do-stuff-a (atom ::nothing))
+(def frobnicate-a (atom ::nothing))
+
+(defn parse-post
+  [meta content]
+  (let [[foo post] (reset! do-stuff-a (do-stuff something meta content))]
+    (merge foo (reset! frobnicate-a (frobnicate bar post)))))
+
+(comment
+  @do-stuff-a
+  @frobnicate-a
+  )
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;And voila, a minimal complexity, vanilla clojure(script) alternative to debuggers.&lt;/p&gt;&lt;h2 id=&quot;a_library_is_born&quot;&gt;A library is born&lt;/h2&gt;&lt;p&gt;Multiple debug atoms are slightly verbose though, and I've typed the characters &lt;code&gt;(defn p&amp;lt; [x] (prn x) x)&lt;/code&gt; way too many times.&lt;/p&gt;&lt;p&gt;So I wrote a &lt;a href=&quot;https://github.com/madstap/hugin&quot;&gt;tiny library.&lt;/a&gt; The current version is &lt;code&gt;[madstap/hugin &quot;0.1.4&quot;]&lt;/code&gt;.&lt;/p&gt;&lt;p&gt;It's called hugin after one of the norse god Odin's ravens. They fly around the world gathering information, then report it back to him.&lt;/p&gt;&lt;p&gt;The debug atom setup it uses is slightly different:&lt;/p&gt;&lt;pre&gt;&lt;code class=&quot;clojure&quot;&gt;(ns hugin.dbg)
+
+(defonce a (atom {}))
+
+(defn a&amp;lt;
+  ([x] (a&amp;lt; ::default x))
+  ([k x]
+   (swap! a assoc k x)
+   x))
+
+(defn a&amp;gt;
+  ([] (a&amp;gt; ::default))
+  ([k] (get @a k ::nothing)))
+
+(defn nuke []
+  (reset! a {}))
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;There is only one atom, with functions wrapping the access to it. This makes it less verbose which is especially nice for debugging. It also makes  it possible to have a &lt;code&gt;nuke&lt;/code&gt; function that resets everything.&lt;/p&gt;&lt;p&gt;If I want a single value I can do that:&lt;/p&gt;&lt;pre&gt;&lt;code class=&quot;clojure&quot;&gt;(ns foo.core
+  (:require
+   [hugin.dbg :as dbg]))
+
+(defn parse-post
+  [meta content]
+  (let [[foo post] (do-stuff something meta content)]
+    (merge foo (dbg/a&amp;lt; (frobnicate bar post)))))
+
+(comment
+  (dbg/a&amp;gt;)
+  )
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;Or multiple values:&lt;/p&gt;&lt;pre&gt;&lt;code class=&quot;clojure&quot;&gt;(defn parse-post
+  [meta content]
+  (let [[foo post] (dbg/a&amp;lt; :do-stuff (do-stuff something meta content))]
+    (merge foo (dbg/a&amp;lt; :frobnicate (frobnicate bar post)))))
+
+(comment
+  (dbg/a&amp;gt; :do-stuff)
+  (dbg/a&amp;gt; :frobnicate)
+  )
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;Sometimes you want to know about a succession of values. Inside a of a &lt;code&gt;reduce&lt;/code&gt; or a &lt;code&gt;loop&lt;/code&gt;. The things coming off of a &lt;code&gt;core.async&lt;/code&gt; channel. Maybe you're making a webapp and want to see the succession of requests to a specific endpoint.&lt;/p&gt;&lt;p&gt;Hugin has got you covered. (He is a nice raven.)&lt;/p&gt;&lt;pre&gt;&lt;code class=&quot;clojure&quot;&gt;(ns hugin.dbg)
+
+,,,
+
+;; This could do with a better name,
+;; please don't hesitate to suggest one in the comments.
+(defn aconj&amp;lt;
+  ([x] (aconj&amp;lt; ::default x))
+  ([k v]
+   (swap! a update k (fnil conj []) v)
+   v))
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;And it is used like this:&lt;/p&gt;&lt;pre&gt;&lt;code class=&quot;clojure&quot;&gt;(defn do-things [xs]
+  (reduce (fn [acc x]
+            (merge acc (dbg/aconj&amp;lt; (do-stuff x))))
+          {}, xs))
+
+(comment
+  ;; Now this returns a vector of all the return values
+  ;; from calling (do-stuff x) for each x
+  (dbg/a&amp;gt;) ;=&amp;gt; [,,,]
+  )
+&lt;/code&gt;&lt;/pre&gt;&lt;h2 id=&quot;conclusion&quot;&gt;Conclusion&lt;/h2&gt;&lt;p&gt;A little clojure goes a long way, and this is true of debugging as much as anything. The combination of immutable values, data structure literals and the fact that almost everything in clojure is an expression that returns a value (modulo syntax inside macros) is what makes this possible.&lt;/p&gt;&lt;p&gt;The way that &lt;code&gt;reset!&lt;/code&gt; works out of the box for this kind of debugging is very nice, and the rest of the stuff in this post and in hugin is trivial to implement.&lt;/p&gt;&lt;p&gt;I hope that this post adds to the common knowledge available on this subject. If you haven't already you should check out the other blog posts listed below, they're all well written and add talk about different aspects of debugging.&lt;/p&gt;&lt;h2 id=&quot;further_reading&quot;&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href=&quot;https://aphyr.com/posts/319-clojure-from-the-ground-up-debugging&quot;&gt;Aphyr's clojure from the ground up&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href=&quot;http://blog.cognitect.com/blog/2017/6/5/repl-debugging-no-stacktrace-required&quot;&gt;No stacktrace required&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href=&quot;https://blog.michielborkent.nl/blog/2017/05/25/inline-def-debugging/&quot;&gt;The inline def technique&lt;/a&gt;,&lt;/li&gt;&lt;li&gt;&lt;a href=&quot;https://eli.thegreenplace.net/2017/notes-on-debugging-clojure-code/&quot;&gt;Notes on debugging clojure code&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;
+</description>
+<pubDate>
+Tue, 07 Nov 2017 00:00:00 -0300
+</pubDate>
+</item>
 <item>
 <guid>
 http://madstap.github.io/posts/hashless-routing/
