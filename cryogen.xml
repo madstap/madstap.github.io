@@ -3,7 +3,7 @@
 <channel>
 <atom:link href='http://madstap.github.io/' rel='self' type='application/rss+xml'/>
 <title>
-Recursive leap of faith
+Left fold
 </title>
 <link>
 http://madstap.github.io/
@@ -12,7 +12,7 @@ http://madstap.github.io/
 Just another technical blog
 </description>
 <lastBuildDate>
-Tue, 07 Nov 2017 22:44:55 -0300
+Mon, 09 Sep 2019 00:41:43 -0300
 </lastBuildDate>
 <generator>
 clj-rss
